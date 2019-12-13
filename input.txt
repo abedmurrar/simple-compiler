@@ -1,0 +1,22 @@
+       newjob          myprogram;
+
+constants
+    max=100;
+    pi=3.14;
+
+variables
+    integer n, count;
+    float total;
+    array [integer] table;
+
+beginb
+     count=0;
+     count = count+1;
+     input<< n>>;
+     if <n!=max> then 
+total= count*max+10;
+     else
+ 	total=count/max;
+     endif;
+     output<< total>>;
+endb exit   
