@@ -9,7 +9,17 @@
       "stdbool.h": "c",
       "compiler.h": "c",
       "stdio.h": "c",
-      "regex.h": "c"
+      "regex.h": "c",
+      "*.tcc": "c",
+      "cstdbool": "c",
+      "inet.h": "c",
+      "functional": "c",
+      "array": "c",
+      "istream": "c",
+      "ostream": "c",
+      "tuple": "c",
+      "type_traits": "c",
+      "utility": "c"
     },
     "workbench.colorCustomizations": {
       "activityBar.background": "#65c89b",
