@@ -1,8 +1,8 @@
-       newjob          myprogram;
+       newjob          myprogram;             
 
-constants
-    max=100;
-    pi=3.14;
+constants             
+    max=100;          
+    pi=3.14;                
 
 variables
     integer n, count;

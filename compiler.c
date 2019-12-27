@@ -4,6 +4,8 @@
 #define DEST_SIZE 40
 #define KEYWORDS_NUMBER 35
 #define BUFFER_SIZE  1000
+
+
 string KEYWORD_NAMES[KEYWORDS_NUMBER]= {
     "NEWJOB",
     "CONSTANTS",
@@ -83,14 +85,12 @@ string KEYWORD_REPRESENTATION[KEYWORDS_NUMBER]= {
 
 int main()
 {
-    FILE *codeFile;
-    char *buffer = (char*)malloc(sizeof(BUFFER_SIZE));
-    boolean newJobSection = true;
-    boolean constantsSection = false;
-    boolean variablesSection = false;
-    boolean statementsSection = false;
+    bool newJobSection = true;
+    bool constantsSection = false;
+    bool variablesSection = false;
+    bool statementsSection = false;
 
-    tokenList* fileTokens = null;
+    token_list* fileTokens = null;
 
 
     /**
@@ -100,19 +100,23 @@ int main()
     register int id=1,i;
     for(i=0;i<KEYWORDS_NUMBER;i++)
     {
-        insertToken(id++,KEYWORD_NAMES[i],KEYWORD_REPRESENTATION[i]);
+        insert_token(id++,KEYWORD_NAMES[i],KEYWORD_REPRESENTATION[i]);
     }
+    FILE *codeFile = null;
+
     codeFile = fopen("input.txt", "r");
     if(codeFile == null)
     {
         exit(1);
     }
+    initiate_regex_strings();
 
     /**
      * Check each line if matches any regex
      * if not, then line has syntax error
      */
-    while(fgets(buffer,1000,codeFile))
+    char *buffer = (char *) malloc(BUFFER_SIZE*sizeof(char));
+    while(fgets(buffer,BUFFER_SIZE,codeFile)!=null)
     {
         // buffer=trim(buffer);
         char* trimmedBuffer = (char*)malloc(1000);
@@ -127,23 +131,31 @@ int main()
 
         if(newJobSection)
         {
-            if(check_match(HEADER_NEWJOB,trimmedBuffer))
+            if(matches(HEADER_NEWJOB,trimmedBuffer))
             {
                 
                 char* tokena = strtok(trimmedBuffer," ");
                 // tokena = trim(strtok(NULL,";"));
-                setString(&tokena,trim(strtok(NULL,";")));
-                token* _temp_token = findToken("newjob",tokens);
+                set_string(&tokena,trim(strtok(NULL,";")));
+                token* _temp_token = find_token("newjob",tokens);
                 if(_temp_token != null)
                 {
-                    insertTokenIntoList(_temp_token->id,_temp_token->name,_temp_token->value,&fileTokens);
+                    insert_token_into_list(_temp_token->id,_temp_token->name,_temp_token->value,&fileTokens);
                 }
-                _temp_token = findToken(";",tokens);
+                _temp_token = find_token(";",tokens);
                 if(_temp_token!=null)
                 {
-                    insertTokenIntoList(_temp_token->id,_temp_token->name,_temp_token->value,&fileTokens);
+                    insert_token_into_list(_temp_token->id,_temp_token->name,_temp_token->value,&fileTokens);
                 }
-                insertTokenIntoList(id++,"NEWJOB_NAME",tokena,&fileTokens);
+                if(!is_reserved_token(tokena,fileTokens)){
+                    insert_token_into_list(id++,"NEWJOB_NAME",tokena,&fileTokens);
+                }
+                else
+                {
+                    fprintf(stderr,"Error in newjob section, %s is an already reserved keyword",tokena);
+                    exit(EXIT_FAILURE);
+                }
+                
                 newJobSection=false;
                 constantsSection=true;
                 continue;
@@ -154,26 +166,33 @@ int main()
                 exit(EXIT_FAILURE);
             }
         }
-        if(constantsSection)
+        else if(constantsSection)
         {
-            if(check_match(BLK_CONSTANTS_REGEX,trimmedBuffer))
+            if(matches(BLK_CONSTANTS_REGEX,trimmedBuffer))
             {
+                // add token
                 continue;
             }
-            else if(check_match(STMT_ASSIGNMENT_REGEX,trimmedBuffer))
+            else if(matches(STMT_ASSIGNMENT_REGEX,trimmedBuffer))
             {
                 char* tokena = strtok(trimmedBuffer,"=");
-                char* tokenb = trim(strtok(NULL,";"));
-                token* _temp_token = findToken(tokena,fileTokens);
-                if(_temp_token == null)
+                char* tokenb;
+                set_string(&tokenb, trim(strtok(NULL,";")));
+                if(!is_reserved_token(tokenb,fileTokens))
                 {
-                    insertTokenIntoList(id++,"CONSTANT",tokena,&fileTokens);
-                    insertConstant(tokena, tokenb);
+                    insert_token_into_list(id++,"CONSTANT",tokena,&fileTokens);
+                    insert_constant(tokena, tokenb);
+                }
+                else
+                {
+                    fprintf(stderr,"Error in constants, %s is an already reserved keyword",tokena);
+                    exit(EXIT_FAILURE);
                 }
                 continue;
             }
-            else if(check_match(BLK_VARIABLES_REGEX,trimmedBuffer))
+            else if(matches(BLK_VARIABLES_REGEX,trimmedBuffer))
             {
+                // add token
                 constantsSection=false;
                 variablesSection=true;
                 continue;
@@ -184,19 +203,44 @@ int main()
                 exit(EXIT_FAILURE);
             }
         }
-        if(variablesSection)
+        else if(variablesSection)
         {
-            if(check_match(VRB_PRIMITIVE_INST,trimmedBuffer))
+            continue;
+            if(matches(VRB_PRIMITIVE_INST,trimmedBuffer))
             {
-                char* tokena = NULL;
-                setString(&tokena,trim(strtok(NULL,";")));
+                char* tokena = NULL, *tokenb = NULL, *token_temp = NULL;
+                char* type;
+                set_string(&tokena,trim(strtok(trimmedBuffer," ")));
+                if(matches(VRB_INT_INST, tokena))
+                {
+                    type="integer";
+                }
+                else if (matches(VRB_FLOAT_INST, tokena))
+                {
+                    type="float";
+                }
+                else if (matches(VRB_CHAR_INST,tokena))
+                {
+                    type="char";
+                }
+                while((token_temp=strtok(NULL, ",;")) != null){
+                    set_string(&tokenb, trim(token_temp));
+                    if(!is_reserved_token(tokenb, fileTokens)){
+                        insert_variable(tokenb,type,NULL);
+                    }
+                    else
+                    {
+                        fprintf(stderr,"Error in variables section, %s is an already reserved keyword",tokena);
+                        exit(EXIT_FAILURE);
+                    }
+                }
                 continue;
             }
-            else if(check_match(VRB_ARRAY_INST,trimmedBuffer))
+            else if(matches(VRB_ARRAY_INST,trimmedBuffer))
             {
                 continue;
             }
-            else if(check_match(BLK_BEGIN_BLOCK_REGEX,trimmedBuffer))
+            else if(matches(BLK_BEGIN_BLOCK_REGEX,trimmedBuffer))
             {
                 variablesSection=false; 
                 statementsSection=true;
@@ -208,11 +252,9 @@ int main()
                 exit(EXIT_FAILURE);
             }
         }
-
     }
     fclose(codeFile);    
-
-    printTokensFromList(fileTokens);
+    print_tokens_from_list(fileTokens);
     printf("\n");
 
 	return 0;
