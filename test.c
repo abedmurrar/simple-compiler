@@ -5,22 +5,8 @@
 
 int main()
 {
-    char str[80] = "integer a,b,c,d;";
-   const char s[3] = ",;";
-   char *token, *tokenb;
-   
-   /* get the first token */
-   tokenb = strtok(str, " ");
-   token = strtok(NULL, s);
-   if(matches(VRB_INT_INST,token)){
-       printf("lel\n");
-   }
-   /* walk through other tokens */
-   while( token != NULL ) {
-      printf( " %s\n", token );
-    
-      token = strtok(NULL, s);
-   }
-   
+    initiate_regex_strings();
+    printf("%s\n",HEADER_NEWJOB);
+
     return 0;
 }

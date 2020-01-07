@@ -170,7 +170,11 @@ int main()
         {
             if(matches(BLK_CONSTANTS_REGEX,trimmedBuffer))
             {
-                // add token
+                token* _temp_token = find_token(trimmedBuffer,tokens);
+                if(_temp_token != null)
+                {
+                    insert_token_into_list(_temp_token->id,_temp_token->name,_temp_token->value,&fileTokens);
+                }
                 continue;
             }
             else if(matches(STMT_ASSIGNMENT_REGEX,trimmedBuffer))
@@ -192,7 +196,11 @@ int main()
             }
             else if(matches(BLK_VARIABLES_REGEX,trimmedBuffer))
             {
-                // add token
+                token* _temp_token = find_token(trimmedBuffer,tokens);
+                if(_temp_token != null)
+                {
+                    insert_token_into_list(_temp_token->id,_temp_token->name,_temp_token->value,&fileTokens);
+                }
                 constantsSection=false;
                 variablesSection=true;
                 continue;
@@ -211,22 +219,23 @@ int main()
                 char* tokena = NULL, *tokenb = NULL, *token_temp = NULL;
                 char* type;
                 set_string(&tokena,trim(strtok(trimmedBuffer," ")));
-                if(matches(VRB_INT_INST, tokena))
+                if(matches(STARTS_WITH_INTEGER, tokena))
                 {
                     type="integer";
                 }
-                else if (matches(VRB_FLOAT_INST, tokena))
+                else if (matches(STARTS_WITH_FLOAT, tokena))
                 {
                     type="float";
                 }
-                else if (matches(VRB_CHAR_INST,tokena))
+                else if (matches(STARTS_WITH_CHAR,tokena))
                 {
                     type="char";
                 }
                 while((token_temp=strtok(NULL, ",;")) != null){
                     set_string(&tokenb, trim(token_temp));
                     if(!is_reserved_token(tokenb, fileTokens)){
-                        insert_variable(tokenb,type,NULL);
+                        insert_token_into_list(id++,"VAR", tokenb, &fileTokens);
+                        insert_variable(tokenb,type,false);
                     }
                     else
                     {
@@ -238,6 +247,10 @@ int main()
             }
             else if(matches(VRB_ARRAY_INST,trimmedBuffer))
             {
+                char* tokena = NULL, *tokenb = NULL, *token_temp = NULL;
+                char* type;
+                set_string(&tokena,trim(strtok(trimmedBuffer," ")));
+                // if(matches(INT))
                 continue;
             }
             else if(matches(BLK_BEGIN_BLOCK_REGEX,trimmedBuffer))

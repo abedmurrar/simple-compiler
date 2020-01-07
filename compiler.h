@@ -16,6 +16,12 @@
 /* TYPE DEFINITIONS */
 typedef char string[MAX_STRING_SIZE];
 
+typedef enum type_t {
+    INTEGER_T = 1,
+    FLOAT_T,
+    CHARACTER_T
+} type;
+
 typedef struct token_t {
     int id;
     char *name;
@@ -31,8 +37,14 @@ typedef struct array_value_t {
 typedef struct var_t {
     bool is_array;
     char *name;
-    char *type;
-    void *value;
+    type _type;
+    union
+    {
+        char characterValue;
+        int integerValue;
+        float floatValue;
+    } value;
+    
 } var, constant;
 
 typedef struct tokenList_t {
@@ -84,15 +96,39 @@ const string AT_LEAST_ONCE = "{1,}";
 const string ONCE_OR_NONE = "{0,1}";
 const string MAY_EXIST = "{0,}";
 const string SEMICOLON = ";";
+const string COMMA = ",";
 const string DOT = "\\.";
 const string EQUALS = "=";
 const string SINGLE_QUOTE = "'";
 const string OR = "|";
+const string SQUARE_BRACKET_OPEN="\\[";
+const string SQUARE_BRACKET_CLOSE="\\]";
+const string SMALLER_THAN = "<";
+const string LARGER_THAN = ">";
+const string DOUBLE_SMALLER_THAN = "<<";
+const string DOUBLE_LARGER_THAN = ">>";
+const string EQUALS_EQUALS = "==";
+const string LESS_THAN_OR_EQUALS = "<=";
+const string LARGER_THAN_OR_EQUALS = ">=";
+const string NOT_EQUALS = "!=";
+const string START_SET = "(";
+const string END_SET = ")";
+const string STARTS_WITH = "^";
+const string ENDS_WITH = "$";
 string NUMBER;
 string FLOATING_NUMBER;
 string WHITESPACE;
 string CHARS;
 string WHITESPACE_MAY_EXIST;
+/* KEYWORDS */
+const string INTEGER_KEYWORD = "integer";
+const string FLOAT_KEYWORD = "float";
+const string CHAR_KEYWORD = "char";
+const string INPUT_KEYWORD = "input";
+const string OUTPUT_KEYWORD = "output";
+const string NEWJOB_KEYWORD = "newjob";
+const string ARRAY_KEYWORD = "array";
+
 /* END REGEX EBNF */
 
 /* BLOCK REGEX */
@@ -106,19 +142,25 @@ const string BLK_END_BLOCK_REGEX="^endb;$";
 /* END BLOCK REGEX */
 string HEADER_NEWJOB;
 string STMT_ASSIGNMENT_REGEX;
-string STMT_ASSIGNMENT_INTEGER_REGEX;
-string STMT_ASSIGNMENT_FLOAT_REGEX;
-string STMT_INPUT_REGEX = "^input[[:blank:]]{1,}<<[[:alpha:]]+>>;";
-string STMT_OUTPUT_REGEX = "^output[[:blank:]]{1,}<<[[:alpha:]]+>>;";
-string BLK_IF_THEN_REGEX = "^if[[:blank:]]{1,}.*[[:blank:]]{1,}then$";
-string BLK_WHILE_DO_REGEX="^while[[:blank:]]{1,}.*[[:blank:]]{1,}do$";
-string BLK_LOOP_UNTIL_REGEX = "^until .*;$";
-string VRB_PRIMITIVE_INST = "^(integer|float|char)[[:blank:]]{1,}[[:alpha:]]{1,}([[:blank:]]{0,},[[:blank:]]{0,}[[:alpha:]]{1,}){0,}?;$";
-string VRB_INT_INST = "^integer";
-string VRB_FLOAT_INST = "^float";
-string VRB_CHAR_INST = "^char";
-string VRB_ARRAY_INST = "^array\\[(integer|float|char)\\][[:blank:]]{1,}[[:alpha:]]{1,};$";
-string CONDITION = "^<[[:blank:]]{0,}.*((!|=)=|<=?|>=?).*[[:blank:]]{0,}>$"; //aint done
+string ENDS_WITH_NUMBER;
+string ENDS_WITH_FLOATING_NUMBER;
+string STMT_INPUT_REGEX;
+string STMT_OUTPUT_REGEX;
+string VRB_PRIMITIVE_INST;
+string STARTS_WITH_INTEGER;
+string STARTS_WITH_FLOAT;
+string STARTS_WITH_CHAR;
+string VRB_ARRAY_INST;
+string VRB_ARRAY_INTEGER;
+string VRB_ARRAY_FLOAT;
+string VRB_ARRAY_CHAR;
+string BLK_IF_CONDITION_THEN_REGEX = "^if[[:blank:]]{1,}.*[[:blank:]]{1,}then$";
+string BLK_WHILE_CONDITION_DO_REGEX="^while[[:blank:]]{1,}.*[[:blank:]]{1,}do$";
+string BLK_LOOP_UNTIL_CONDITION_REGEX = "^until .*;$";
+
+
+
+string CONDITION = "^<[[:blank:]]{0,}([[:alpha:]]{1,}|[[:digit:]]+)[[:blank:]]{0,}(!=|==|<=?|>=?)[[:blank:]]{0,}([[:alpha:]]{1,}|[[:digit:]]+)[[:blank:]]{0,}>$"; // done
 
 /** Lists */
 token_list* tokens = null;
@@ -145,7 +187,7 @@ void initiate_regex_strings()
         then follow by another sequence of digits (at least one digit)
         Ex: 1.0, 0.0, 21.1235, 9999.123, 10.5
     */
-    snprintf(FLOATING_NUMBER, sizeof(FLOATING_NUMBER), "%s%s%s",NUMBER,DOT,NUMBER);
+    snprintf(FLOATING_NUMBER, 2*strlen(NUMBER)+strlen(DOT)+1, "%s%s%s",NUMBER,DOT,NUMBER);
     /**
      * HEADER_NEWJOB : starts with static word "newjob"
      *                 followed by WHITESPACE
@@ -153,7 +195,22 @@ void initiate_regex_strings()
      *                 then ended with a semicolon
      * Ex: newjob helloworld;
     */
-    snprintf(HEADER_NEWJOB, sizeof(HEADER_NEWJOB),"^%s%s%s%s$","newjob",WHITESPACE,CHARS,SEMICOLON);
+    snprintf(HEADER_NEWJOB,
+     strlen(STARTS_WITH)+
+     strlen(NEWJOB_KEYWORD)+
+     strlen(WHITESPACE)+
+     strlen(CHARS)+
+     strlen(SEMICOLON)+
+     strlen(ENDS_WITH)+
+     1,
+     "%s%s%s%s%s%s",
+     STARTS_WITH,
+     NEWJOB_KEYWORD,
+     WHITESPACE,
+     CHARS,
+     SEMICOLON,
+     ENDS_WITH
+     );
     /**
      * STMT_ASSIGNMENT_REGEX : starts with CHARS (must exist)
      *                         followed by WHITESPACE_MAY_EXIST
@@ -165,19 +222,124 @@ void initiate_regex_strings()
      *     foo                  =                2.0;
      *     bar=3;
     */
-    snprintf(STMT_ASSIGNMENT_REGEX, MAX_STRING_SIZE, "^%s%s%s%s(%s%s%s)%s$",CHARS,WHITESPACE_MAY_EXIST,EQUALS,WHITESPACE_MAY_EXIST,NUMBER,OR,FLOATING_NUMBER,SEMICOLON);
+    snprintf(STMT_ASSIGNMENT_REGEX, MAX_STRING_SIZE, "%s%s%s%s%s%s%s%s%s%s%s%s",STARTS_WITH,CHARS,WHITESPACE_MAY_EXIST,EQUALS,WHITESPACE_MAY_EXIST,START_SET,NUMBER,OR,FLOATING_NUMBER,END_SET,SEMICOLON,ENDS_WITH);
     /**
-     * STMT_ASSIGNMENT_INTEGER_REGEX : ends with a NUMBER followed by a SEMICOLON disregarding what it starts with
+     * ENDS_WITH_NUMBER : ends with a NUMBER followed by a SEMICOLON disregarding what it starts with
+     * Ex: 3;
     */
-    snprintf(STMT_ASSIGNMENT_INTEGER_REGEX, MAX_STRING_SIZE,"%s%s$",NUMBER,SEMICOLON);
+    snprintf(ENDS_WITH_NUMBER, MAX_STRING_SIZE,"%s%s%s",NUMBER,SEMICOLON,ENDS_WITH);
     /**
-     * STMT_ASSIGNMENT_FLOAT_REGEX : ends with a FLOATING_NUMBER followed by a SEMICOLON disregarding what it starts with
+     * ENDS_WITH_FLOATING_NUMBER : ends with a FLOATING_NUMBER followed by a SEMICOLON disregarding what it starts with
+     * Ex: 213.23;
     */
-    snprintf(STMT_ASSIGNMENT_FLOAT_REGEX, MAX_STRING_SIZE, "%s%s$", FLOATING_NUMBER, SEMICOLON); // ends with a floating number
+    snprintf(ENDS_WITH_FLOATING_NUMBER, MAX_STRING_SIZE, "%s%s%s", FLOATING_NUMBER, SEMICOLON,ENDS_WITH); // ends with a floating number
+    /**
+     * STMT_INPUT_REGEX: starts with input keywords and followed by << then a variable name then >> and ended with a semicolon
+     * Ex: input <<foo>>;
+     */
+    snprintf(STMT_INPUT_REGEX, MAX_STRING_SIZE, "%s%s%s%s%s%s%s%s",STARTS_WITH,INPUT_KEYWORD,WHITESPACE,DOUBLE_SMALLER_THAN,CHARS,DOUBLE_LARGER_THAN,SEMICOLON,ENDS_WITH);
+    /**
+     * STMT_OUTPUT_REGEX: starts with output keywords and followed by << then a variable name then >> and ended with a semicolon
+     * Ex: output <<x>>;
+     */
+    snprintf(STMT_OUTPUT_REGEX, MAX_STRING_SIZE, "%s%s%s%s%s%s%s%s",STARTS_WITH,OUTPUT_KEYWORD,WHITESPACE,DOUBLE_SMALLER_THAN,CHARS,DOUBLE_LARGER_THAN, SEMICOLON,ENDS_WITH);
+    //string VRB_PRIMITIVE_INST = "([[:alpha:]]{1,}){0,};$";
+    snprintf(VRB_PRIMITIVE_INST,MAX_STRING_SIZE,"%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+    STARTS_WITH,
+    START_SET,
+    INTEGER_KEYWORD,
+    OR,
+    FLOAT_KEYWORD,
+    OR,
+    CHAR_KEYWORD,
+    END_SET,
+    WHITESPACE,
+    CHARS,
+    START_SET,
+    WHITESPACE_MAY_EXIST,
+    COMMA,
+    WHITESPACE_MAY_EXIST,
+    CHARS,
+    END_SET,
+    MAY_EXIST,
+    SEMICOLON,
+    ENDS_WITH
+    );
+    /**
+     * string STARTS_WITH_INTEGER = "^integer";
+string STARTS_WITH_FLOAT = "^float";
+string STARTS_WITH_CHAR = "^char";
+     * 
+     */ 
+
+    snprintf(STARTS_WITH_INTEGER, MAX_STRING_SIZE, "%s%s",STARTS_WITH,INTEGER_KEYWORD);
+    snprintf(STARTS_WITH_FLOAT, MAX_STRING_SIZE, "%s%s",STARTS_WITH,FLOAT_KEYWORD);
+    snprintf(STARTS_WITH_CHAR, MAX_STRING_SIZE, "%s%s",STARTS_WITH,CHAR_KEYWORD);
+
+    /**
+     * 
+     * string VRB_ARRAY_INST = "^array\\[(integer|float|char)\\][[:blank:]]{1,}[[:alpha:]]{1,};$";
+string VRB_ARRAY_INTEGER ="^array\\[integer\\]";
+string VRB_ARRAY_FLOAT ="^array\\[float\\]";
+string VRB_ARRAY_CHAR ="^array\\[char\\]";
+     */ 
+
+    snprintf(VRB_ARRAY_INST, 
+    strlen(STARTS_WITH)+
+    strlen(ARRAY_KEYWORD)+
+    strlen(SQUARE_BRACKET_OPEN)+
+    strlen(START_SET)+
+    strlen(INTEGER_KEYWORD)+
+    strlen(OR)+
+    strlen(FLOAT_KEYWORD)+
+    strlen(OR)+
+    strlen(CHAR_KEYWORD)+
+    strlen(END_SET)+
+    strlen(SQUARE_BRACKET_CLOSE)+
+    strlen(WHITESPACE)+
+    strlen(CHARS)+
+    strlen(SEMICOLON)+
+    strlen(ENDS_WITH)+
+    1
+,"%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+    STARTS_WITH,
+    ARRAY_KEYWORD,
+    SQUARE_BRACKET_OPEN,
+    START_SET,
+    INTEGER_KEYWORD,
+    OR,
+    FLOAT_KEYWORD,
+    OR,
+    CHAR_KEYWORD,
+    END_SET,
+    SQUARE_BRACKET_CLOSE,
+    WHITESPACE,
+    CHARS,
+    SEMICOLON,
+    ENDS_WITH
+    );
+
+
+    snprintf(VRB_ARRAY_INTEGER,MAX_STRING_SIZE,"%s%s%s%s%s",
+    STARTS_WITH,
+    ARRAY_KEYWORD,
+    SQUARE_BRACKET_OPEN,
+    INTEGER_KEYWORD,
+    SQUARE_BRACKET_CLOSE
+    );
+    snprintf(VRB_ARRAY_FLOAT,MAX_STRING_SIZE,"%s%s%s%s%s",
+    STARTS_WITH,
+    ARRAY_KEYWORD,
+    SQUARE_BRACKET_OPEN,
+    FLOAT_KEYWORD,
+    SQUARE_BRACKET_CLOSE
+    );
+    snprintf(VRB_ARRAY_CHAR,MAX_STRING_SIZE,"%s%s%s%s%s",STARTS_WITH,ARRAY_KEYWORD,SQUARE_BRACKET_OPEN,CHAR_KEYWORD,SQUARE_BRACKET_CLOSE);
+
+
 }
 
 /** TOKENS */
-
 void insert_token(int id,string name, string value)
 {
     insert_token_into_list(id,name,value,&tokens);
@@ -249,9 +411,23 @@ void insert_variable(string name, string type, bool is_array)
     // assign values
     vln -> next = null;
     vln->variable.name=name;
-    vln->variable.type=type;
+    // vln->variable.type=type;
     vln->variable.is_array = is_array;
-    vln->variable.value=NULL;
+    // vln->variable.value=NULL;
+
+    if(is_int(type)){
+        vln->variable._type=INTEGER_T;
+    }
+    else if(is_float(type)){
+        vln->variable._type=FLOAT_T;;
+    }
+    else if(is_character(type)){
+        vln->variable._type=CHARACTER_T;
+    }
+    else{
+        fprintf(stderr,"Unknown type : %s",type);
+        exit(EXIT_FAILURE);
+    }
     
     // assign to list
     var_list* temp = variables;
@@ -314,23 +490,17 @@ void set_variable_value(string name, string value, int index)
     if(variable != null){
         if(!variable->is_array)
         {
-            if(is_int(variable->type))
+            switch (variable->_type)
             {
-                int* val = (int*) malloc(sizeof(int));
-                *val = atoi(value);
-                variable->value = (int *)val;
-            }
-            else if(is_float(variable->type))
-            {
-                float* val =(float *) malloc(sizeof(float));
-                *val = (float) atof(value);
-                variable->value = (float *)val;
-            }
-            else if(is_character(variable->type))
-            {
-                char* val = (char *) malloc(sizeof(char));
-                *val = *value;
-                variable->value = (char *) val;
+                case INTEGER_T:
+                    variable->value.integerValue = atoi(value);
+                    break;
+                case FLOAT_T:
+                    variable->value.floatValue = atof(value);
+                    break;
+                case CHARACTER_T:
+                    variable->value.characterValue = *value;
+                    break;
             }
         }
     }
@@ -343,18 +513,14 @@ void insert_constant(string name, char * value)
     // assign values
     cln->next = null;
     cln->_const.name=name;
-    if(strstr(value,".")!=null)
+    if(matches(FLOATING_NUMBER, value))
     {
-        float* val =(float*) malloc(sizeof(float));
-        *val = atof(value);
-        cln->_const.value = (float*) val;
         cln->_const.type = "float";
+        cln->_const.value.floatValue = atof(value);
     }
-    else
+    else if(matches(NUMBER, value))
     {
-        int* val = (int*) malloc(sizeof(int));
-        *val = atoi(value);
-        cln->_const.value = (int *) val;
+        cln->_const.value.integerValue = atoi(value);
         cln->_const.type = "integer";
     }
 
@@ -402,12 +568,11 @@ bool matches(const char* pattern, char* string)
         
         /* Compile regular expression */
         reti = regcomp(&regex, pattern, REG_EXTENDED);
-        //^[a-zA-Z]+\s+?=\s+?[\d]$
 
         /* Execute regular expression */
         reti = regexec(&regex, string, 0, NULL, 0);
         if( !reti ){
-                match = true;
+            match = true;
         }
 
         /* Free compiled regular expression if you want to use the regex_t again */
